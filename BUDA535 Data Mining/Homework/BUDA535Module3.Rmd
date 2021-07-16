@@ -1,0 +1,173 @@
+---
+title: "BUDA535Module3"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 :
+
+Using the Carseats data in the ISLR package create a categorical binary response such that we're seeing if location sales are above or below the median value.  That is Carseats$Sales>median(Carseats$Sales).  Fit a logistic regression model using all predictors available.  Explore the classifier that could be created from this model using an ROC curve.  Discuss any trade-offs you see in the classification performance in the model.
+
+```{r}
+library(ISLR)
+library(ROCR)
+library(caret)
+library(e1071)
+data(Carseats)
+#head(Carseats)
+
+Carseats$Sales_factor<- as.factor(Carseats$Sales > median(Carseats$Sales))
+
+logistic.model <- glm(Sales_factor ~ .-Sales, data=Carseats, family="binomial")
+#summary(logistic.model)
+
+pred <- predict(logistic.model,type="response")
+sales_pred = prediction(pred,Carseats$Sales_factor)
+p1 = performance(sales_pred,"tpr","fpr")
+plot(p1)
+
+confusionMatrix(as.factor(pred > .7),Carseats$Sales_factor, positive = "TRUE")
+confusionMatrix(as.factor(pred > .9),Carseats$Sales_factor, positive = "TRUE")
+confusionMatrix(as.factor(pred > .61),Carseats$Sales_factor, positive = "TRUE")
+
+#library(dplyr)
+#nrow(filter(Carseats,Carseats$Sales_factor=="TRUE"))
+#nrow(filter(Carseats,Carseats$Sales_factor=="FALSE"))
+```
+
+
+### Interpretation :
+
+**Data:** Created a new column with factor of Sales > median. Used the Sales factor as response to see the sales high and low from median. 
+
+Predicted model on carseats data set. Constructed a ROC curve by plotting the true positive rate (TPR) against the false positive rate (FPR) with performance classifier method. ROC shows trade-offs between TPR and FPR and possible cutoff values, which are the probabilities assigned to each observation. Classifiers that give curves close to top-left corner indicates better performance. 
+
+Used Positive = "TRUE" in confusion matrix to identify true positive rate (positive results) for sales that are > median.
+
+As seen in the ROC curve, if we want the prediction probability of true positive values with 70%, we will get 10% false positive values. Considering the probability threshold > 0.70 in confusion matrix for Sales to check if above or below the median, 161 observations are true positives and 191 observations are false positives. That means, 81% (sensitivity = 0.809) of Sales are predicted to be true positive (above median) in this model.
+
+Now setting probability threashold > .90, False positive and true positives observations are increased and other 2 are decreases. In addition, model accuracy decreases. Hence, if we go toward X-axis or  90 degree angle, False positive rate will increase. That means, 66% of results are true positive and 99% of results are true negative which sounds a little unrealistic.
+
+So lowering the probability threshold might give better results and can achieve the highest possible sensitivity while maintaining a low false positive rate.
+
+If we predict the sales at 0.61, where the cut off of the curve starts, 185 observations are false positive(92% Speicificity) and 171 are true positive(86% Sensitivity). Accuracy of the model is 89% and error rate is 11%. 
+
+Overall, based on ROC curve, the performance of classifier in terms of misclassification counts and Error rate varies
+with probability cut-offs(threshold) and  to evaluate/compare (two or more) such classifiers, we need to consider a suitable range of its values or fix one. For a good model, the ROC curve should rise steeply which indicates that the true positive rate (y-axis) increases faster than the false positive rate (x-axis) as the probability threshold decreases. 
+
+For this binomial model to see if location sales are above or below the median value, ROC curve rises steeply till 0.61 of y-axis and than it incline towards the x-axis until the point 1.0 of (y-axis). So the best classificaiton rule or best probability cut-off can be considered at 0.62 of y-axis. It is best to choose the cutoff value after taking into consideration the trade offs between sensitivity and specificity.
+
+
+## Problem 2 
+
+Using the Default data in the ISLR package use Naive Bayes, LDA, and QDA to create classification models to predict credit defaults and compare the results.  To make this comparison you should create a testing sample of 10% of each default class, and compare the results on that hold out sample only.  Give any insights you may have about these models.
+
+```{r}
+library(ISLR)
+library(e1071)
+library(MASS)
+library(dplyr)
+data("Default")
+
+#hold out
+library(caret)
+set.seed(2367)
+
+train_in <- createDataPartition(Default$default,p=.90, list = FALSE, times=1)
+train_data <- Default[train_in,]
+test_data <- Default[-train_in,]
+
+#nrow(Default)
+#nrow(train_data)
+#nrow(test_data)
+#nrow(filter(test_data,test_data$default == "Yes"))
+#nrow(filter(test_data,test_data$default == "No"))
+
+
+## Naive Bayes
+model_naive <- naiveBayes(default~.,data=train_data)
+model_naive
+#pred.naive <- predict(model_naive, newdata = test_data, type="class")
+pred.naive <- predict(model_naive, newdata = test_data)
+nb.cm1 <- table(true = test_data$default, predicted = pred.naive)
+nb.cm2 = confusionMatrix(nb.cm1, positive = "Yes")
+
+## LDA
+model_LDA <- lda(default~.,data=train_data)
+model_LDA
+pred.lda <- predict(model_LDA,test_data)
+#sum(pred.lda$posterior[, 1] >= .25)
+#sum(pred.lda$posterior[, 2] > .25)
+pred.prob.lda = prediction(pred.lda$posterior[,2], test_data$default)
+p1.lda = performance(pred.prob.lda,"tpr","fpr")
+plot(p1.lda)
+lda.cm1 <- table(test_data$default, pred.lda$class)
+lda.cm2 = confusionMatrix(lda.cm1, positive = "Yes")
+
+## QDA
+model_QDA <- qda(default~.,data=train_data)
+model_QDA
+pred.qda <- predict(model_QDA,test_data)
+pred.prob.qda = prediction(pred.qda$posterior[,2], test_data$default)
+p1.qda = performance(pred.prob.qda,"tpr","fpr")
+plot(p1.qda)
+qda.cm1 <- table(test_data$default, pred.qda$class)
+qda.cm2 = confusionMatrix(qda.cm1, positive = "Yes")
+
+# Confusion Matrix
+list(title = "Confusion Matrix Table",
+     LDA_Model = lda.cm2$table,
+     QDA_Model = qda.cm2$table,
+     naiveBayes_Model = nb.cm2$table)
+
+# Prediction Eval
+list(title = "Prediction Eval",
+     LDA_model = lda.cm2$table %>% prop.table() %>% round(3),
+     QDA_model = qda.cm2$table %>% prop.table() %>% round(3),
+     NaiveBayes_Model = nb.cm2$table %>% prop.table() %>% round(3))
+
+# Error Rate
+test_data %>%
+  mutate(lda.pred = (pred.lda$class),
+         qda.pred = (pred.qda$class),
+         naive.pred = (pred.naive)) %>% 
+  summarize(lda.error = mean(default != lda.pred),
+            qda.error = mean(default != qda.pred),
+            naive.error = mean(default != naive.pred))
+
+# Precision and other values
+
+list(title = "Precision, Sensitivity, Specificity",
+     LDA_model = lda.cm2$byClass,
+     QDA_model = qda.cm2$byClass,
+     naiveBayes_model = nb.cm2$byClass)
+
+
+```
+
+### Interpretation :
+
+**Naive Bayes method :** Based on the summary of Naive Bayes model, prior probabilities are No = 0.966 and Yes = 0.033. Output also provides Conditional probabilties for each predictor in each class with mean and standard deviation with column 1 and 2 respectively of the outcome variable marked as Y.
+
+
+**LDA Model :** Based on the summary of LDA model, prior probabilities are No = 0.966 and yes = 0.033 which means 96.6% of the observations on training set are customers who are not defaulters and 3% are defaulted. Output also provides the group means which predict within each class. 
+
+**QDA Model :** Summary of QDA is same as LDA on the training set. Summary contains the prior probabilities and the group means. But it does not contain the coefficients of the linear discriminants which was in LDA because this is Quatratic model for prediction and not linear. 
+
+DId prediction for all three models on test data and constructed the ROC curve for LDA and QDA. 
+
+**Prediction Comparisons/ Confusion Matrix :**  Displayed prediction/confusion matrix in percentage form for all three models. Results shows that all models perform in a very similar manner. 96% of the observations are predicted as true negatives and about 1% are true positives. All three Models predicted 3% customers will not default but they actually did. Models predicted Less than 1% of customers will default but they never did.
+
+**Error Rates and other Comparisons :** Estimated error rates for all three models. It is seen in the table that error rate for naive bayes model is slightly less than LDA and QDA models. If we look at the precision for each model, LDA model has a slightly low precision than the QDA and naive Bayes model. We can increase the precision of the model by adjusting the posterior probability threshold  with considering the sensitivity and specificity too.  ROC curves looks almost similar for LDA and QDA models. LDA model have probability cut off just below 0.25 on y-axis and QDA model have probability cut off at around 0.25 on y-axis. Based on the statistics, naive bayes perform good with error rates. But if we consider the precision, LDA is better. LDA and QDA can be used with continous variables while naive bayes can only be used with categorial variables. LDA and QDA are giving good assumptions based on confusion matrix that predicted true negatives and true positives. We can decrease the prior probability cutoff from .5 (this the default considered) to 0.25 and can get better prediction for true positives and true negatives as per ROC curves of LDA and QDA.
+
+
+
+
+
+
+

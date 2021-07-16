@@ -1,0 +1,118 @@
+---
+title: "BUDA530Module3"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 : 
+
+ The discoveries dataset in the faraway package lists the numbers of "great" inventions and scientific discoveries in each year from 1860-1959.  Investigate the number of discoveries over time.  Use the appropriate Poisson model to fit the number of discoveries against the year.  Hint you may need to create this.  Comment on any findings of the model you have.
+
+
+
+```{r}
+library(faraway)    
+
+data("discoveries")
+
+summary(discoveries)
+
+plot(discoveries, ylab="Number of discoveries")
+boxplot(discoveries)
+hist(discoveries,breaks=10,prob=TRUE)
+lines(density(discoveries, na.rm=T), col="red",lwd=4)
+
+
+years <- 1860:1959
+
+model <- glm(discoveries~years, family=poisson)
+summary(model)
+
+mean(discoveries)
+sd(discoveries)
+
+plot(log(fitted(model)),log((discoveries-fitted(model))^2))
+abline(0,1)
+
+
+```
+
+### Interpretation : 
+
+As per the graph, more discoveries happens between 1880 to 1900 and large fluctations between these years. Based on the summary of model, years is significant at p-value < 0.05 level. Moreover, histogram shows that data is right-skewed. 
+
+Based on statistics of model, one unit increase of years parameter will decrease the discoveries by 0.005360 unit. The plot shows that points are normally distributed to the line which means variance and means are similar. Hence poisson model is fit for the analysis.
+
+
+## Problem 2 :
+
+The hsb data in the faraway package is a subset of the High School and Beyond study.  The variables are school type, socioeconomic status, school type, chosen high school program type, scores in certain classes.  Present any tables or plots you may find relevant to this analysis.  The goal is to fit a model that explains a persons program choice type based on the observed variables.  Investigate the coefficients and comment on any interesting findings.  This is a multinomial model with program type as a response (3 levels). 
+
+```{r}
+library(faraway)
+library(nnet)
+data(hsb)
+head(hsb)
+str(hsb)
+plot(hsb)
+
+summary(hsb)
+table( hsb$gender, hsb$prog)
+table(hsb$ses, hsb$prog)
+table(hsb$schtyp, hsb$prog)
+
+
+model1 <- multinom(prog~., data=hsb)
+summary(model1)
+step(model1)
+modS <- step(model1)
+
+model2 <- multinom(prog~science+math+socst+ses+schtyp, data=hsb)
+summary(model2)
+output <- summary(model2)
+
+predict(model2, newdata = data.frame(science=35, math=70, socst= 35, ses = c("high","low","middle"),schtyp=c( "private")), type="prob")
+predict(model2, newdata = data.frame(science=30, math=40, socst= 35, ses=c("low","middle","high"),schtyp="public"), type="prob")
+predict(model2, newdata = data.frame(science=30, math=40, socst= 35, ses="low",schtyp="public"), type="prob")
+predict(model2, newdata = data.frame(science=52, math=40, socst= 40, ses="middle",schtyp="public"), type="prob")
+
+library(effects)
+plot(Effect("math",model2))
+plot(Effect("science",model2))
+plot(Effect("socst",model2))
+plot(Effect("ses",model2))
+plot(Effect("schtyp",model2))
+
+z <- output$coefficients/output$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1))*2
+
+Pclass2 <- rbind(output$coefficients[1,],output$standard.errors[1,],z[1,],p[1,])
+rownames(Pclass2) <- c("Coefficient","Std. Errors","z stat","p value")
+knitr::kable(Pclass2)
+
+```
+
+### Interpretation :
+
+Based on the step function, 5 predictors are selected for response program Type with lowest AIC 343.5511. Baseline of the model with 5 variables : science, math, socst, ses and schtyp is academic  program types with high socioeconomic class and private school. 
+
+$$log(Probability of General/Probability of Academic) = b0 + b1*Science + b2*math + b3*socst + b4*(ses=low) + b5*(ses=middle )+b6*(schtyp=public)$$
+$$log(Probability of Vocation/Probability of Academic) = b0 + b1*Science + b2*math + b3*socst + b4*(ses=low) + b5*(ses=middle )+b6*(schtyp=public)$$
+
+Predicting the probablities of variables at different values,all five variables are making difference on the response. Moreover, effects plot shows similar visibility that varaibles science, math and socst are significant for choosing the program type while schtype and ses are significant at some level when choosing acedemic prog type.
+
+Based on p-values, science, math and socst scores are significant at 0.05 level hence we reject the null hypothesis for these variables. However, p-values of ses and schtyp are at 0.1 level and are signigicant factor for chosing program type as per analysis.
+
+Summary of model says that students with low math and socst scores in middle socioeconomic class attended public school are chosing vocation progam type against academic. With high math score studied in private school in high socieconomic class, students tend to chose academic program. 
+
+Looking at coefficients of summary, as the tuning parameters (predictors) increases by one unit, the log odds will decrease by that unit. For example, if science score increases by 0.0820 and all others are set to zero than response variable program type will increase by 0.2669 unit ( 2.597 - 0.0820).  If predictors are set to zero, log odds are 2.5870 against academic program type.
+
+
+
+
+

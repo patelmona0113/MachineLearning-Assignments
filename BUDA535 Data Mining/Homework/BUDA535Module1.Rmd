@@ -1,0 +1,159 @@
+---
+title: "BUDA535Module1"
+output: word_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 :
+
+Using the College Data in the ISLR Package we want to better understand if there are groups of colleges.  Pick a subset of numeric variables (don't use Private), you must use at least 4, that you believe would segment colleges into some meaningful groups.  From there use both k-means and variations of hierarchical clustering to see what groups you can possibly identify.  Please comment on how you selected your clusters, what meaning your clusters have (if any), and if scaling your data had any effect on the results.  
+
+
+```{r pressure, echo=FALSE}
+library(ISLR)
+library(cluster)
+library(dplyr)
+data("College")
+#head(College)
+#summary(College)
+
+newdata <- College[,-c(1)] #minus private
+#newdata$College.cost <- newdata$Outstate + newdata$Room.Board + newdata$Expend
+newdata <- newdata[,-c(1,3,5,6,15)] #minus Apps, Enroll and F.Undergraduate and perc.alumni
+#head(newdata)
+
+#Kmeans method
+college_sel <- clusGap(newdata, FUN = kmeans, nstart = 20, K.max = 35, B=80, iter.max=100)
+plot(college_sel)
+
+# creating clusters
+set.seed(1234)
+m1= kmeans(newdata,5)
+#m1= kmeans(newdata,5, nstart = 100)
+m1$centers
+m1$size
+#plot(newdata$Outstate~newdata$Grad.Rate)
+
+clusplot(newdata, m1$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+
+#Creating clusters 
+#m1= kmeans(newdata,3)
+#m1= kmeans(newdata,3, nstart = 100)
+#m1$centers
+#m1$size
+
+
+#hclust method with clusgap
+myCluster <- function(x,k)list(cluster=cutree(hclust(dist(x,"euclidian"), method="complete"),k=k))
+clustG <- clusGap(newdata,myCluster,K.max = 35, B=100)
+plot(clustG)
+
+#hclust method with cuttree
+m2 <- hclust(dist(newdata,"euclidian"), method="complete")
+#m2 <- hclust(dist(newdata,"manhattan"), method="cent")
+plot(m2)
+rect.hclust(m2, k=5, border="red")
+v1<-cutree(m2,k=5)
+table(v1)
+
+# Check obersavation at the median to see the meaning or grouping of the clusters
+aggregate(newdata,list(v1), median)
+
+# scaling the data
+newdata_s <- scale(newdata)
+
+#Kmeans method
+college_sel_s <- clusGap(newdata_s, FUN = kmeans, nstart = 20, K.max = 35, B=80, iter.max=100)
+plot(college_sel_s)
+
+# creating clusters
+set.seed(4598)
+ms= kmeans(newdata_s,2)
+#ms= kmeans(newdata_s,2, nstart = 100)
+ms$centers
+ms$size
+
+clusplot(newdata, ms$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+```
+
+
+### Interpretation :
+
+**Data :** Removed Apps, Enroll and F.Undergraducate variables as those are inter-related/dependent with Accept Variable. Removed perc.alumni because that did not seem a lot of significant as its donation from partners for alumni.
+
+**Clustering with kmeans :** Using gap clustering method and based on it plot, 5 clusters can be created. Based on the clusters groups, Cluster 1 has colleges with the least part time graduate students having less personal expenses with average graduation rate of 78.7 %. 
+Cluster 2 have colleges with higher PhD and Terminal faculties have top 10% HSC students enrolled with high expenses of room.board, outstate and Expend along with lowest S.F.Ratio (students faculty ratio) have highest graduation rate. 
+Cluster 3 have colleges with high applications accepted having maximum number of Part time Undergrad enrolled with high Expend cost. 
+Cluster 4 have colleges with least graduation rate having least top10% of HSC student with least PHD and Terminal degree faculties and least expenses. 
+Cluster 5 is not too meaningfull except that it floats in medium range for all variables except colleges with least accepted applications. Clustering plot shows a lot of overlapping of these clusters. To add, using nstart = 100/60/30 gives almost similar clusters results.
+
+**Hierarchical clustering :** After doing cuttree and looking at the median in hierarchical clustering, cluster groups have similar meaning as in kmeans. Looking at table of cutree, clusters 4 and 5 have 1 and 3 records respectively which are outliers. 
+
+**Overall Conclusion as per my knowledge:** Colleges with highest number of PhD and Terminal degree faculties have Top 10% of HSC students have high graduation rates along with high expenses of Outstate, room.Board and Expend. These variables are likely proporational to each other in all clusters such as percentage of expenses and PhD/Terminal faculties decreases, top 10% of HSC and grad rate decreases. Part time students are more where acceptance rate of colleges are more.
+
+**Results on scaled data :** Scaled the data and used Kmeans with 2 clusters. Based on plot, 5 clusters can be possible but thinking as maximum gap statistics, 2 clusters seems best. Cluster 1 have colleges with top 10% of HSC students with high expenses of outstate, room.board, books and Expend. These colleges have highest number of PhD and Terminal degree faculties and least Part time graducate students and less S.F. Ratio. Cluster 2 have least Graduation rate with less number of top 10% of HSC students and less number of PhD and terminal degree faculties and high part time graducate students. Students of these colleges have less expenses except Personal expenses. 
+
+**Comparision :** Results of scaled data have aggregated the groupings in  2 with reasonable size clusters. While on raw data, grouping are widened and have 1-2 clusters with outliers. But results of scaled and raw data varies depending on dataset. Graph of scaled data shows overlapping clusters but quite clear. I tried different size of clusters such as 3 and 4 on raw data with kmeans and hclust after cutting it to 5 but somehow 5 makes more sense though it has few outliers. Varified the results for 3 but clusters with 5 gave me more meaningful subgroups. Please suggest if my understanding is not correct. 
+
+
+## Problem 2 :
+The Credit data in the ISLR package describes 400 customers.  Using only the numeric variables, investigate if the customers break out into any subgroups (clusters).  If so provide insights on those subgroups.  Hint:  Sometimes it's useful to compare the groups to baselines such as underlying factors i.e. distribution of education, student.  It can also be useful to just summarize the group based on the cluster itself such as cluster mean and median. 
+
+```{r}
+library(ISLR)
+data("Credit")
+
+newdata_Credit <- Credit[,-c(1,8,9,10,11)]
+#head(newdata_Credit)
+
+Credit_sel <- clusGap(newdata_Credit,FUN = kmeans, nstart = 30, K.max = 35, B=70, iter.max = 100 )
+plot(Credit_sel)
+
+
+#Kmeans method
+set.seed(6591)
+m1<- kmeans(newdata_Credit,2)
+m1$centers
+m1$size
+clusplot(newdata_Credit, m1$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+
+#hclust method
+h1<-hclust(dist(newdata_Credit,"euclidian"), method="complete")
+plot(h1)
+rect.hclust(h1,k=3,border="red")
+c1<-cutree(h1,k=3)
+table(c1)
+
+aggregate(newdata_Credit,list(c1), mean)
+aggregate(newdata_Credit,list(c1), median)
+
+#Scaled Data
+newdata_Credit_s = scale(newdata_Credit)
+
+Credit_sel_s <- clusGap(newdata_Credit_s,FUN = kmeans, nstart = 30, K.max = 35, B=70, iter.max = 100 )
+plot(Credit_sel_s)
+
+
+#Kmeans method
+set.seed(6571)
+ms<- kmeans(newdata_Credit_s,2)
+ms$centers
+ms$size
+clusplot(newdata_Credit_s, ms$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+
+```
+
+### Interpretation :
+
+**Kmeans Method :** Based on graph, created 2 clusters which are of size 233 and 167 observations respectively. Looking at the centers of clusters, Cluster 1 makes group of customers having low income with less limit and rating along with less credit card balance. Also, age of these customers are less compared to cluster2. Cluster 2 have customers with high income having high limit with good rating and credit card balance. 
+
+**Hierarchical clustering :** Based on dendogram, created 3 clusters which have 194,193 and 13 observations respectively. Looking at median and mean of the clusters, Cluster 2 and 3 provides almost same insights : high income with good credit limit and rating along with good credit card balance. Cluster 1 have customers with less incomes, low limit and rating with less credit card balance. If we look at the size of groups closely, group 3 have just 13 records which can be considered as kind of outliers but surely they are imporant data which is 3% of the 400 records. 
+
+**Scaled Data :** Scaled data provides more insight for the clusters. Cluster 1 have customers having low income with low credit limit and low credit rating along with less credit card balance with less age and high education. Cluster 2 have customers with high income having high limit and rating and good credit card balance. These customers age are higher. 
+
+**Overall Conclusion :** Comparing both the methods, credit data provides 2 clusters with meaningfull insights. One with good income, limit, rating and balance and other with less income, limit, rating and balance. Looking at these 2 clusters, variation of age and education is less. If we consider variables like student, married and gender, that might have provided more insights to these clusters. Scaled data for this dataset provides few more meaningful insights with age and education. 

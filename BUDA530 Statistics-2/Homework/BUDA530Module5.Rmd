@@ -1,0 +1,107 @@
+---
+title: "BUDA530Module5"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Problem 1 :
+
+Using the AirPassengers data use the techniques you’ve learned in this module to forecast the next 10 time points. Give an interpretation to the next time point and discuss the intervals for prediction. You should at least have two comparisons. Discuss any thoughts you have on how you might select between the two models.
+
+```{r}
+library(forecast)
+
+#alpha : the estimates of the level at the current time point
+#beta  : slope b of the trend component at the current time point
+#gamma : the seasonal #component at the current time point
+#The parameters alpha, beta and gamma all have values between 0 and 1, and values that are close to 0 mean that relatively little weight is placed on the most recent observations when making forecasts of future values.
+
+#head(AirPassengers)
+#summary(AirPassengers)
+plot(AirPassengers)
+plot(log(AirPassengers))
+airPassengers_dc <- decompose(log(AirPassengers))
+plot(airPassengers_dc)
+#airPassengers_dc$seasonal
+
+airpassengersH <- HoltWinters(log(AirPassengers))
+airpassengersH
+plot(airpassengersH)
+airpassengers_forecast <- forecast(airpassengersH, h=10)
+airpassengers_forecast
+plot(airpassengers_forecast)
+plot(airpassengers_forecast$residuals)
+hist(airpassengers_forecast$residuals,breaks=10)
+lines(density(airpassengers_forecast$residuals, na.rm=T), col="red",lwd=4)
+
+HoltWinters_airpassengers1 <- HoltWinters(log(AirPassengers), beta = TRUE, gamma=FALSE, alpha=TRUE)
+#HoltWinters_airpassengers1 <- HoltWinters(log(AirPassengers), beta = FALSE, gamma=TRUE, alpha=TRUE)
+plot(HoltWinters_airpassengers1)
+airpassengers_forecast1 <- forecast(HoltWinters_airpassengers1,h=10)
+forecast(HoltWinters_airpassengers1,h=10)
+plot(forecast(airpassengers_forecast1, h= 10))
+hist(airpassengers_forecast1$residuals,breaks=10)
+lines(density(airpassengers_forecast1$residuals, na.rm=T), col="red",lwd=4)
+
+```
+
+### Interpretation :
+
+It is seen in the plot of log of AirPassengers that the fluctuations in the time series are roughly constant in size over time. THe decomposed plot shows the level, trend and seasonality in the time series of AirPassengers data. The estimated seasonal factors are for the months January to December, and are the same for each year. The largest seasonal factor is for July  of about 0.21 , and the lowest is for November of about -0.21 , indicating that there seems to be a peak in July and less passengers in November each year.
+
+Using HoltWinters model without explicitly selecting values for alpha, beta and gamma, forecast for 10 next points which is Jan 1961 - Oct 1961 is done. The estimated values of alpha, beta and gamma are 0.33, 0.01, and 0.82, respectively. The forecasted passengers for Jan 1961 is about 6.11 , with a 95% prediction interval of 6.031 to 6.185. We see from the forecast plot that the prediction of the seasonal peaks, which occur roughly in July and November every year is constant for each year.The forecasts values are shown as a blue line along with the grey shades of 80% and 95% prediction intervals, respectively. The predicted intervals for the next 10 points looks consistent in range. From the histogram of forecast model, it seems plausible that the forecast errors are normally distributed with mean zero. 
+
+While comparing the models, model with beta = TRUE, gamma=FALSE, alpha=TRUE is less accurate in forecasting the  next points. The plot of the model shows the variance in actual values and predicted values (red line). The forecasted points have large predicted intervals which shows large and inconsistent variance. HIstogram plot do not show normal distrubution. Forecasted plot shows a straigh blue line and do not show constant variance. Therefore, Model that selects alpha, gamma and beta by itself is good fit for forecasting airpassengers data.
+
+
+## Problem 2 : 
+
+The wineind data in R is an interesting data set for time series analysis. Use the methods associated with ARIMA such as differences and autocorrelation to detect if there is a lag structure. Then compare a Holt Winters Model to that of an ARIMA model. Hint in the auto.arima function in R there is a seasonal aspect that adds seasonal functionality to arima. It will return what you need. In the arima function you can supply the argument seasonal = c(p,d,q) with the recommendation from auto.arima.
+
+```{r}
+library(forecast)
+library(tseries)
+library(TTR)
+#wineind
+#summary(wineind)
+plot(wineind)
+wineind_ts <- ts(wineind, start=c(1980), frequency = 12)
+
+
+wineind_dc <- decompose(wineind_ts)
+plot(wineind_dc)
+#wineind_dc$seasonal
+
+diff1 <- diff(wineind_ts, lag =  1)
+#diff1 <- diff(wineind,lag = 2)
+plot(diff1)
+
+acf(diff1, lag.max = 20)
+pacf(diff1)
+
+auto.arima(wineind_ts)
+arimaModel <- Arima(wineind_ts, seasonal = c(0,1,1), include.drift = T)
+arimaModel
+plot(arimaModel)
+arimaforecast <- forecast(arimaModel, h=10)
+forecast(arimaModel, h=10)
+plot(arimaforecast)
+#auto.arima(wineind_ts, trace = T)
+
+holtwintersModel <- HoltWinters(wineind_ts)
+holtwintersModel
+plot(holtwintersModel)
+holtwintersforecast <- forecast(holtwintersModel, h=10)
+forecast(holtwintersModel, h=10)
+plot(holtwintersforecast)
+
+```
+
+### Interpretation : 
+
+Plot wineind show the almost equal variance in the trend. DIfferences plot show the steady trend. Wine sales is in peak in November and december months and least is in January.
+
+When comparing the holtwinters and arima models, forecasting of arima is better than holtswinter. The Confidence intervals are better for arima model compared to holtswinter model.
+
+

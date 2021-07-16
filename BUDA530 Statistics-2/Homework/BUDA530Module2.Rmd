@@ -1,0 +1,80 @@
+---
+title: "BUDA530Module2"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Problem 1 : 
+
+We want to understand if the tumor is cancerous or not based on measurements of the cell. The task is to create insights on these measurements and find if any of the measurements are useful and report on them. Using the wbca data in the faraway package. Fit a binary logistic regression model with Class as the response and the other variables as predictors.  Comment on the model deviance and tests for the coefficients.  Attempt model selection using the step function and comment on any reduction that takes place.  (HINT THIS IS SIMLAR TO USING STEP with lm).
+
+```{r}
+library(faraway)
+data("wbca")
+head(wbca)
+
+#pairs(wbca,col=(wbca$Class))
+
+mod1 <- glm(Class ~ ., data=wbca, family="binomial")
+summary(mod1)
+
+mod2 <- step(mod1)
+summary(mod2)
+
+model3 <- glm(Class ~Adhes + BNucl + Chrom + Mitos + NNucl + Thick + UShap, data=wbca, family="binomial" )
+summary(model3)
+```
+
+### Interpretation :
+
+As per the summary above for Model considering all the predictors, the residual deviance is 89.662 and corresponding degree of freedom are 673. So if we look at the summary of this model, as the tuning parameters (predictors) increases by one unit, the log odds will decrease by that unit. For example, if marginal adhesion (adhes) increases by -0.3984 and all others are set to zero than response variable Class will decrease by 0.3884 unit ( 11.03 - 0.3884).  If predictors are set to zero, log odds are 11.033.
+
+$$η = β0+β1*Adhes+β2*BNucl+β3*Chrom+β4*Epith+β5*Mitos+β6*NNucl+β7*Thick+β8*UShap+β9*USize
+$$
+However, p-values of almost all coefficents are less than 0.05 except for predictors Mitos, NNucl and Ushap. So for predictors Mitos, NNucl and Ushap, we fail to reject null hypothesis as p > 0.05. So we will use step fuction to check the AIC and reduction of predictors if any required.
+
+Based on the results of step function, predictors Epith and Usize are no longer in the model(mod2) and AIC is 105.66 compared to 109.46 for model with all the predictors. Thus, mod2 with the lowest AIC value can be considered because p-values of both these predictors are more than 0.05 indicating no significant effect on the response Class and  fail to reject null hypothesis. MOdel 2 is the fit model for further analysis as per step function because removing other predictors do not give smaller AIC and simple model.
+
+
+## Problem 2 :
+
+At the same organization we are now evaluating the toxicity of a new chemical, so we want to see what exposure to the chemical does to animals.  Using the aflatoxin data in the faraway package. Fit a logistic regression model for the number of animals with liver cancer as a function of the dose.  Comment on the statistical significance of the model.  Calculate the predicted probability of liver cancer for a dose of 25 ppb.  Can you find a 95% confidence interval for this value.  If so report it and give any insights you may have.
+
+```{r}
+library(faraway)
+data("aflatoxin")
+head(aflatoxin)
+summary(aflatoxin)
+which(aflatoxin$tumor!=0)
+aflatoxin$no_tumor <- (aflatoxin$total - aflatoxin$tumor)
+aflatoxin$tumor
+aflatoxin$total
+
+
+model1 <- glm(cbind(tumor,no_tumor) ~ dose, family="binomial", data=aflatoxin)
+summary(model1)
+
+plot(tumor/total ~ dose,aflatoxin,xlim=c(1,100),ylim=c(0,1), ylab="Proportation of Tumor", xlab="Dose")
+x<-seq(0,100,1)
+lines(x,ilogit(predict(model1,newdata=data.frame(dose=x))),col=2)
+
+## Predict probablity for dose of 25 ppb  
+ilogit(predict(model1, newdata=data.frame(dose=25)))
+
+
+confint(model1)
+
+
+```
+
+### Interpretation :
+
+As per the summary of Model1 with liver cancer as a function of the dose, animals that received dose developed tumors. The proportation that developed tumor increases with the dosage. The log-odds of a tumor increase by 0.09009 for every unit of dosage increase. p-value of co-efficent is <0.05 so we fail to reject null hypothesis. 
+
+$$η = β0+β1*dose
+$$
+
+The results of confindence intervals looks good as the main value of dose and intercept which are 0.09009 and -3.03604 respoective are beween CI range. The upper and lower CI remains well behaved. 
+
+

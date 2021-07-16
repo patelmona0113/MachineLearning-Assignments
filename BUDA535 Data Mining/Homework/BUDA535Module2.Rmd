@@ -1,0 +1,104 @@
+---
+title: "BUDA535Module2"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 :
+
+The SMarket data in the ISLR package describes 1250 days of daily percentage returns for the S&P between 2001 and 2005.  Use factor analysis and principal components analysis to try and find relevant summary statistics that could provide insights into the data.  Report your findings including insights into how you selected your number of statistics.
+
+```{r}
+library(ISLR)
+data("Smarket")
+#head(Smarket)
+
+Smarket$Direction <- ifelse(Smarket$Direction == "Up", 1, 0)
+Smarket_newdata <- Smarket[]
+#head(Smarket_newdata)
+summary(Smarket_newdata)
+cor(Smarket_newdata[,])
+cor(Smarket)
+
+Smarket_pca <- prcomp(Smarket_newdata,scale = TRUE)
+Smarket_pca
+summary(Smarket_pca)
+plot(Smarket_pca$sdev^2)
+plot(Smarket_newdata$Year ~ Smarket_newdata$Volume)
+
+g1<- scale(Smarket_newdata)%*%Smarket_pca$rotation[,]
+#plot(data.frame(g1))
+
+fs1<-factanal(scale(Smarket_newdata),factors = 3)
+fs1
+
+fs2<-factanal(scale(Smarket_newdata),factors = 4)
+fs2
+
+
+```
+
+
+### Interpretation :
+
+**Data :** Used all the variables for PCA and factor analysis. Converted factor variable into binary 0 and 1. As per the summary of data, variables lag1, lag2, lag3, lag4, lag5 and today have similar Min, max, median and Mean. 
+
+
+**Principal Component Analysis :** As per the scree plot, the elbow happens close to 3 and from 3 to 7, variance is almost similar. Deciding the number of components that takes around 80% of threshold and looking at  standard deviation of PCs that start going below 1, PC1 to PC5 can be considered. 
+
+PC1 is dominated by variables today and direction. Percentage return today is indicated by direction variable if its positive or negative return. 
+
+PC2 is dominated by variables year and volume. Volume of shares traded increases with the year.
+
+PC3, PC4 and PC5 are inter related with Lag1 to lag5. 
+
+Overall, PC1 and PC2 gives more meaningful insights. Plot of Volume~Year shows the similar insight.  PC3 to PC5 is more on percentage return on previous days 1 to 5. Percentage return insights can be more discussed with expertise and can futher be drilled down and can see if PCA is good for this dataset or not.
+
+**Factor Analysis :** 3 and 4 factors model created. Choosing 3 factors analysis as p-value is above .05 which says we fail to reject the null hypothesis. Hence it says that we are using a good approximation.  
+
+Factor 1 shows average of today and direction. Factor 2 shows overall average of Volume and year. Factor 3 is the differences of volume and year. A high uniqueness for a variable indicates that the factors do not account well for its variance. Lag1 thru lag4  variables have high uniqueness. Factor analysis shows few similar insights like PCA.
+
+
+## Problem 2 :
+The Anscombe data in the car package describes US Public School Expenditures in the 1970's for the 50 states plus Washington DC.  Use PCA and Factor analysis to see if there are possible ways to gain insights on the relationships between the 4 variables, or produce summary statistics that could provide intuition about spending.  Report your findings and comment on how you came up with decisions.  
+
+```{r}
+library(car)
+data(Anscombe)
+head(Anscombe)
+plot(as.data.frame(scale(Anscombe)))
+plot(Anscombe$education~Anscombe$young)
+
+cor(Anscombe)
+
+pcom <- prcomp(Anscombe,scale = TRUE)
+pcom
+summary(pcom)
+hist(pcom$rotation[,1])
+plot(pcom$sdev^2)
+biplot(pcom)
+
+fs<-factanal(scale(Anscombe),factors = 1)
+fs
+
+```
+
+### Interpretation :
+
+
+**Principal Component Analysis :** Based on the summary and scree plot, PC1 and PC2 gives around 85% of variabilty. PC1 is average of all three variables : income, education and urban versus young. Meaning, in urban area, education cost and income are higher and all these 3 variables are related with each other and young population under 18 is less hence school education cost will be less.
+
+PC2 is dominated by variables young and education cost with same magnitude (minus) hence it will be sum with negative sign. young and education versus income and urban. Meaning, school education cost will be high with young population under 18 years in the area. This will be sum(income,urban) - sum(young,education). young people under 18 are not likely to be located in downtowns/core urban areas. 
+
+biplot shows the similar insights for PC1 and PC2.
+
+**Factor Analysis :** Allowed to create 1 factor model as variables are too less. p-value is < 0.05 which says we reject the null hypothesis. Which says we might not be using good approximation?
+
+Factor 1 shows overall sum of education, income and urban variables minus young. It gives the same insight as PC1 of PCA. A high uniqueness for a variable (young) indicates that the factors do not account well for its variance.
+
+

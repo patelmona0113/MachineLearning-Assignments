@@ -1,0 +1,230 @@
+---
+title: "BUDA535Module4"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 :
+
+Revisit the Carseats Problem from homework 3.  Under the same scenerio, use the elastic net (using binomial regression), lasso, and ridge regression, to find relevant variables.  Discuss any differences you see in the results.  Remember in these methods the choice of tuning parameters will dictate how large or small each each of these models are.  You should use 5 or 10 fold cross validation to select your tuning parameters.  You can use either cv.glment or caret to do the cross validation (caret may be easier).  Make sure you discuss the final model and any inisghts you derive from it.
+
+```{r}
+
+library(ISLR)
+library(caret)
+data("Carseats")
+
+Carseats$Sales_factor <- as.factor(Carseats$Sales > median(Carseats$Sales))
+
+set.seed(7548)
+train_in <- createDataPartition(Carseats$Sales_factor,times=1,p=0.75,list=FALSE)
+train_data <- Carseats[train_in,]
+test_data <- Carseats[-train_in,]
+
+displaybesttuneresults = function(train_model)
+{
+  bestaccuracy = which(rownames(train_model$results) == rownames(train_model$bestTune))
+  bestresults = train_model$results[bestaccuracy,]
+  rownames(bestresults) = NULL
+  bestresults
+}
+
+#nrow(train_data)
+#nrow(test_data)
+#nrow(filter(test_data,test_data$Sales_factor == "TRUE"))
+#nrow(filter(test_data,test_data$Sales_factor == "FALSE"))
+
+fitControl <- trainControl(method="cv", number=10)
+
+# Lasso Regression
+set.seed(7548)
+lasso_train_model = train(Sales_factor~.-Sales,data=train_data,method = "glmnet", trControl=fitControl, family="binomial", tuneGrid=expand.grid(alpha= 1,lambda=seq(0.1,20,0.5)))
+besttuneResuts.lasso = displaybesttuneresults(lasso_train_model)
+besttuneResuts.lasso
+
+# Coefficents
+coef(lasso_train_model$finalModel, lasso_train_model$bestTune$lambda)
+
+# Prediction
+predict.lasso <- predict(lasso_train_model, test_data)
+cm.lasso = confusionMatrix(predict.lasso, test_data$Sales_factor, positive = "TRUE")
+cm.lasso
+
+# Ridge Regression
+set.seed(7548)
+ridge_train_model = train(Sales_factor~.-Sales, data=train_data, method="glmnet", trControl = fitControl, family="binomial", tuneGrid = expand.grid(alpha = 0, lambda=seq(0.1,20,0.5)))
+#ridge_train_model
+besttuneResuts.ridge = displaybesttuneresults(ridge_train_model)
+besttuneResuts.ridge
+
+# Coefficients
+coef(ridge_train_model$finalModel,ridge_train_model$bestTune$lambda)
+
+# Prediction
+predict.ridge <- predict(ridge_train_model,test_data)
+cm.ridge = confusionMatrix(predict.ridge,test_data$Sales_factor, positive = "TRUE")
+cm.ridge
+
+# Elastic net
+set.seed(7548)
+tuning_grid = expand.grid(alpha=seq(0.0,1,0.025),lambda=seq(0.1,20,0.5))
+elastic_train_model = train(Sales_factor~.-Sales,data=train_data, method="glmnet",trControl = fitControl, family = "binomial", tuneGrid = tuning_grid)
+#elastic_train_model
+besttuneResuts.elastic = displaybesttuneresults(elastic_train_model)
+besttuneResuts.elastic
+
+# Coefficients
+coef(elastic_train_model$finalModel, elastic_train_model$bestTune$lambda)
+
+# Prediction
+predict.elastic <- predict(elastic_train_model,test_data)
+cm.elastic = confusionMatrix(predict.elastic,test_data$Sales_factor,positive = "TRUE")
+cm.elastic
+
+# Accuracy of best tunining parameters of train model
+list(title = "Accuracy of best tunining parameters of train model",
+  LassoModel = besttuneResuts.lasso ,
+  RidgeModel = besttuneResuts.ridge,
+  ElasticModel = besttuneResuts.elastic)
+
+
+# Accuracy of predicted models on test data
+list(title = "Accuracy of predicted models on test data",
+  LassoModel = cm.lasso$overall['Accuracy'],
+  RidgeModel = cm.ridge$overall['Accuracy'],
+  ElasticModel = cm.elastic$overall['Accuracy'])
+
+```
+
+### Interpretation :
+
+**Data :** Created a new column with factor of Sales > median. Used the Sales factor as response to see the sales high and low from median. Data pratitioned into 75-25 for trained and test data sets. 
+
+Trained all three models on train dataset using caret package. Using 10 fold cross validations on these data. 
+
+**Lasso Regression (binomial):** Set the alpha value to 1(lasso penalty) and lambda value between 0.1 to 20. The train method will test all the lambda values and takes the best lambda value in final model whose accuracy is highest. The  optimal lambda selected thru CV for final model is 0.1 and its accuracy is 75.38%. Looking at the coefficents of the final model, only 4 predictors are selected and 7 predictors are set to zero. Lasso model tries to shrink the small coefficents to zero which might cause the lose of predictive ability. Confusion matrix of prediction on test data gives 73.74% of accuracy.
+
+**Ridge Regression (binomial):** Set the alpha value to 0(ridge penalty) and lambda value between 0.1 to 20. The trained model selected lambda as 0.1 and accuracy of model is 85.04% and is considered in the final model. In final model, all coefficents are selected here but few of them are close to zero. Ridge model shrink the coefficents towards zero but never become zero which may helps to improve prditive accuracy. Confusion matrix shows good prediction on test data with good accuracy.
+
+**Elastic Net Regression (binomial)** For elastic net model, alpha and lambda, both are tuning parameters. Alpha takes values between 0 and 1 (as this model is a generalization of the ridge and lasso models) and lambda between 0.1. to 20. THe model tests a range of possible alpha and lambda values, then selects the best values for lambda and alpha, resulting to a final model. The trained model selected alpha = 0.025 and lambda = 0.1 and accuracy is 85.70%. The tuning parameters are more towards the ridge model. 
+
+**Comparisons of all three models output:**
+All three models selected the optimal lambda = 0.1 as best tuning parameter for the final model. Elastic net model selected alpha = 0.01 which is close to the ridge model. If we compare the accuracy, the final model of elastic net gives 85.70% accuracy which is greater than lasso and ridge and close to ridge.
+
+In elastic net and ridge final models, all coeff are selected and 4 predictors are shrinked toward zero value while in lasso, only 4 coeff are selected and others are set to zero. 
+
+Elastic net model is performing good with prediction accuracy(84) which is almost same as ridge model. 
+
+Overall, elastic net model looks great as compared to other though the tuning parameters are towards the ridge penalty. Model Accuracy is almost higher as compared to lasso and ridge models. As the ridge and elastic net model statistics looks very much similar, elastic net is good for this dataset because elastic net model will enables regularization via the ridge penalty with the feature selection characteristics of the lasso penalty. 
+
+## Problem 2 :
+
+The wbca data in the faraway package studies the type of tumor (malignant or benign) found in individuals with breast cancer based on measurements of those tumors.  Use Class as the response and the rest of the variables as predictors.  Use lasso, ridge and elastic net (binomial logistic regression) to find relevant variables and discuss your final model.  You should use 5 or 10 fold cross validation to choose the tuning parameters (use caret or cv.glment).  Make sure you discuss any inisghts you may have about the model, and relationship between the three models you find. 
+
+```{r}
+
+library(faraway)
+library(caret)
+library(glmnet)
+library(dplyr)
+data("wbca")
+#head(wbca)
+#str(wbca)
+
+wbca$Class <- as.factor(wbca$Class)
+
+set.seed(0909)
+train_in1 = createDataPartition(wbca$Class,times = 1,list = FALSE, p=.75)
+
+train_data1 <- wbca[train_in1,]
+test_data1 <- wbca[-train_in1,]
+
+#nrow(filter(test_data1,test_data1$Class == "1"))
+#nrow(filter(test_data1,test_data1$Class == "0"))
+#nrow(test_data1)
+#nrow(train_data1)
+
+fitControl= trainControl(method="cv",number=10)
+
+# Lasso
+set.seed(0909)
+wbca_lasso <- train(Class~.,data=train_data1,method="glmnet",trControl=fitControl, tuneGrid = expand.grid(alpha= 1, lambda = seq(0.1,15,0.1)))
+besttuneresults.lasso.wbca = displaybesttuneresults(wbca_lasso)
+besttuneresults.lasso.wbca
+
+
+# Coeff
+coefficients(wbca_lasso$finalModel, wbca_lasso$bestTune$lambda)
+
+# Prediction on test data
+predict.lasso.wbca <- predict(wbca_lasso, test_data1, type="raw")
+cm.lasso.wbca = confusionMatrix(predict.lasso.wbca, test_data1$Class, positive = "1")
+cm.lasso.wbca
+
+## Ridge
+set.seed(0909)
+wbca_ridge <- train(Class~.,data=train_data1,method="glmnet",family="binomial",tuneGrid = expand.grid(alpha = 0, lambda=seq(0.1,15,0.1)), trControl = fitControl)
+besttuneResuts.ridge.wbca = displaybesttuneresults(wbca_ridge)
+besttuneResuts.ridge.wbca
+
+# coeff
+coefficients(wbca_ridge$finalModel,wbca_ridge$bestTune$lambda)
+
+# Prediction on test data
+predict.ridge.wbca <- predict(wbca_ridge, test_data1)
+cm.ridge.wbca = confusionMatrix(predict.ridge.wbca,test_data1$Class, positive = "1")
+cm.ridge.wbca
+
+#Elastic net
+set.seed(0901)
+tuning_grid1 = expand.grid(alpha=seq(0.01,1,0.025), lambda=seq(0.1,20,0.25))
+wbca_elastic <- train(Class~.,data=train_data1,family="binomial",method="glmnet",trControl=fitControl,tuneGrid=tuning_grid1)
+besttuneResuts.elastic.wbca = displaybesttuneresults(wbca_elastic)
+besttuneResuts.elastic.wbca
+
+
+# coeff
+coefficients(wbca_elastic$finalModel,wbca_elastic$bestTune$lambda)
+
+# Prediction on test data
+predict.elastic.wbca <- predict(wbca_elastic,test_data1)
+cm.elastic.wbca = confusionMatrix(predict.elastic.wbca,test_data1$Class,positive = "1")
+cm.elastic.wbca
+
+# best tune results of final model 
+list(title = "Best tune results of final model",
+     lasso_model = besttuneresults.lasso.wbca,
+     ridge_model = besttuneResuts.ridge.wbca,
+     elastic_model = besttuneResuts.elastic.wbca)
+
+# Accruacy of prediction on test data
+list(title = "Accuracy of prediction on test data",
+     lasso_pred = cm.lasso.wbca$overall['Accuracy'],
+     ridge_pred = cm.ridge.wbca$overall['Accuracy'],
+     elastic_pred = cm.elastic.wbca$overall['Accuracy'])
+
+# Prediction Eval
+list(title = "Prediction Eval",
+     lasso_model = cm.lasso.wbca$table %>% prop.table() %>% round(3),
+     ridge_model = cm.ridge.wbca$table %>% prop.table() %>% round(3),
+     elastic_model = cm.elastic.wbca$table %>% prop.table() %>% round(3))
+
+```
+
+### Interpretation :
+
+Trained all three models on train dataset using caret package using 10 fold cross validations. 
+
+Looking at the output of lasso model (penalty alpha = 1), the best results uses lambda = 0.1 with accuracy of 95.5% for the final model. Train method of caret finds the value of lambda that gives the simplest model but also lies within one standard error of the optimal value of lambda. Model selected 6 predictors for the final model and setting other 3 variables to zero. Lasso tries to shrink the non-significant coeff to zero to reduce the complexity of the model which may decrease the accuracy. Predicting the trained model on test data gives 94% of accuracy. Looking at the confusion matrix and comparing this with actual test data, we see that true negatives and true positives numbers are very close to the actual test data. 
+
+As per the output of ridge model (penalty alpha = 0), the best results uses lambda = 0.1 with accuracy of 97.26%. Model tried to shrink less significant coefficents towards zero but it will not set to zero which may increase the accuracy as compared to lasso model. Looking at the confusion matrix, prediction accuracy of the model is 95%. 
+
+In elastic net regression model, alpha and beta are tuning parameters. Alpha takes values between 0 and 1 (as this model is a generalization of the ridge and lasso models) and lambda values varies from o to anyvalue (here 15). The model tests a range of possible alpha and lambda values, then selects the best values for lambda and alpha, resulting to a final model. Final values used for model are alpha = 0.01 and lambda = 0.1 which fits a model close to ridge. Prediction accuracy on test data of the model is 95.26% which is again similar to ridge.
+
+**Comparisons :** Looking at the tuning parameters of all three models, optimal lambda value selected is 0.1 and alpha =0.01 for elastic net. Accuracy of ridge and elastic net is same and highter than lasso model. Lasso algorithm tried to shrink the 3 coeffs and set it to zero to reduce the complexity which caused the accuracy to reduce. Elastic net and Ridge coeff at pushed towards to zero vaulues which are not significant but needs to be considered at some point. Elastic net regression combines L1-norm and L2-norm introducing a mixing parameter aplha in conjunction with lambda. Prediction accuracy of elastic net and ridge are same which is 95.26% and higher than lasso model. In elasticnet and ridge models,  32% of the observations are predicted as true negatives (malignant) and about 63.3% are true positives(benign). 3% cases are not malignant but they actually are malignant and around 2% are benign but actually are not benign. 
+

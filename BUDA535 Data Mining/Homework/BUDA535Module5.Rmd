@@ -1,0 +1,301 @@
+---
+title: "BUDA535Module5"
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 :
+
+Using the Default data in the ISLR package use random forests, bagging, and classification trees to create a model to predict customer defaults.  Use caret to do model selection (select tuning parameters) using 5 or 10 fold cross validation. Before model create a hold out sample of 10% of the total data (10% of each class) and compare the final model selected of each type. Which preforms better?  What insights can you give on your models if any?
+
+```{r include=FALSE}
+library(ISLR)
+library(caret)
+library(rpart)
+library(randomForest)
+library(ipred)
+library(rpart.plot)
+library(dplyr)
+data("Default")
+
+displaybesttuneresults = function(train_model)
+{
+  bestaccuracy = which(rownames(train_model$results) == rownames(train_model$bestTune))
+  bestresults = train_model$results[bestaccuracy,]
+  rownames(bestresults) = NULL
+  bestresults
+}
+##head(Default)
+##str(Default)
+#nrow(filter(train_data,train_data$default == "No"))
+#nrow(filter(train_data,train_data$default == "Yes"))
+
+#nrow(filter(test_data,test_data$default == "No"))
+#nrow(filter(test_data,test_data$default == "Yes"))
+```
+```{r}
+
+set.seed(3476)
+train_in <- createDataPartition(Default$default, p=.90, list = FALSE,times = 1)
+train_data <- Default[train_in,]
+test_data <- Default[-train_in,]
+
+fitControl = trainControl(method="cv",number = 10)
+
+#Random Forests
+set.seed(3476)
+randomforest_train_model <- train(default~.,data=train_data,trControl=fitControl, method ='rf',family="binomial",tuneGrid = expand.grid(mtry=1:3))
+plot(randomforest_train_model)
+randomforest_train_model$finalModel
+varImp(randomforest_train_model)
+varImpPlot(randomforest_train_model$finalModel,type = 2)
+randomforest.besttuned = displaybesttuneresults(randomforest_train_model)
+
+pred.randomForest <- predict(randomforest_train_model,test_data)
+cm.randomForest = confusionMatrix(pred.randomForest,test_data$default, positive = "Yes")
+cm.randomForest
+
+
+# Bagging
+set.seed(3476)
+bagging_train_model <- train(default~.,data=train_data,trControl=fitControl, method="treebag")
+#bagging_train_model <- train(default~.,data=train_data,trControl=fitControl, method="cforest", controls = party::cforest_unbiased(ntree = 20), tuneGrid = data.frame(.mtry=3))
+bagging_train_model$finalModel
+varImp(bagging_train_model$finalModel)
+plot(varImp(bagging_train_model))
+bagging.besttuned = displaybesttuneresults(bagging_train_model)
+
+
+pred.bagging <- predict(bagging_train_model,test_data)
+cm.bagging = confusionMatrix(pred.bagging,test_data$default,positive = "Yes")
+cm.bagging
+
+
+# classification Trees
+set.seed(3476)
+#classTree_train_model <- train(default~.,data=train_data,method="rpart",trControl=fitControl, tuneGrid=expand.grid(cp=0.01))
+classTree_train_model <- train(default~.,data=train_data,method="rpart",trControl=fitControl, tuneLength=10)
+#classTree_train_model <- train(default~.,data=train_data,method="rpart2",trControl=fitControl, tuneGrid=expand.grid(maxdepth=1:10))
+classTree_train_model$finalModel
+
+rpart.plot(classTree_train_model$finalModel, nn=TRUE)
+varImp(classTree_train_model$finalModel)
+plot(varImp(classTree_train_model))
+classTree.besttuned = displaybesttuneresults(classTree_train_model)
+
+
+pred.classTree <- predict(classTree_train_model,test_data)
+cm.classTree = confusionMatrix(pred.classTree,test_data$default, positive = "Yes")
+cm.classTree
+
+# Accuracy/best Tuned of model on trained data
+list(title = "Best Tuned results",
+     randomforest_pred =randomforest.besttuned,
+     bagging_pred = bagging.besttuned,
+     classificationtree_pred = classTree.besttuned)
+
+# Accruacy of model on test data
+list(title = "Accuracy of prediction on test data",
+     randomforest_pred =cm.randomForest$overall,
+     bagging_pred = cm.bagging$overall,
+     classificationtree_pred = cm.classTree$overall)
+
+# Other stats of Confusion Matrix
+list(title = "Other Stats of Confusion Matrix",
+     randomforest_pred =cm.randomForest$byClass,
+     bagging_pred = cm.bagging$byClass,
+     classificationtree_pred = cm.classTree$byClass)
+
+# Prediction Eval
+list(title = "Prediction Eval",
+     rf_model = cm.randomForest$table %>% prop.table() %>% round(3),
+     bagging_model = cm.bagging$table %>% prop.table() %>% round(3),
+     classtree_model = cm.classTree$table %>% prop.table() %>% round(3))
+
+```
+
+### Interpretation :
+
+As per the output of the final model selected for random forest method, number of trees trained are 500 (default) and mtry used is 1 as accuracy (97.07%) is high among all three mtry. The number of variables sampled at each split is 1 (mtry : tuning parameter) which is considered optimal in this case. The error rate of model is 2.81% which is good. As per the class error, true negatives prediction accuracy is better than true positives prediction accuracy. Looking at the very important variables, balance is considered to have greater impact on response. Variables imp plot indicates same : the average decrease in node impurity which is from splits over that variable is high. Predicting the final model on test data, accuracy of model is 97% with very less sensitivity of 18.18% which means prediction of true positives accuracy is less. In test data, actually, there are 3% of defaulters while model predicted less than 1% on test data. In random forest method, only a subset of features are selected at random out of the total and the best split feature from the subset is used to split each node in a tree.
+
+As per the output of the final model selected for bagging method, accuracy is 96.8% on train data. No tuning parameters for treebag method. Looking at imp variables, again, balance variable have more impact on response default. Predicting the fit model on test data, 96.9 % of model accuracy with almost similar to accuracy on trained data. Again, sensitivity is just 24.24% which is prediction of true positivies accuracy is less. All features are considered for splitting a node in this method.
+
+As per the output of the final model selected for classification tree method, cp=0.013 is used and model accuracy is 97.24%. Each node in this visual display gives the estimate at each node as well as the percentage of train data observations that are placed in that node. Based on the tree and the varImp method results, again, balance is one of the most effective varaible for partitioning the nodes of the tree. Predicting the fit model on test data, classification accuracy is 97.3% with 30.30% sensitivity. Looking at the confusion matrix data, 1% of the observations are predicted as defaulters (true positives). 
+
+**Comparisons / Which performs better? :** 
+
+Comparing the accuracy of test data and train data, they are almost same for each of these three models which is good.
+
+Looking at the classification accuracy (on test data) of all three models, classification trees method have the highest accuracy of 97.29%. Agaim, Classification trees method have the highest sensitivity(true positives) of 30.30% which means 30.30% of observations are predicted to be true positives. Other two methods have very low sensitivity. All models have almost same specificity which predicts observations to be true negatives. p-value of classificcation trees is 0.16 is lowest than other 2 models. At level of .1, model shows dependency between dependent and predictor variables.
+
+Looking at the prediction eval metric, 96% of the observations are predicted as true negatives by all three methods. Furthermore, classification trees method predicted 1.5% of the obersations as true postivies while other 2 method predicted less than 1% of the observations as true positives. 
+
+It is seen in the classification tree plot, defaulters are splitted by balance and income in different range. At the top parent node, it is overall probability of defaulters. 3% of customers are defaulters. Node splits with balance < 1797. If yes, then you go down to left child node (#2). 97% are with balance < 1797 with defaulter probability of 2%. If no, then you go down to right child node(#3). 3% are with balance > 1797 with no-defaulter probability of 57%.You keep on going like that to understand what features impact the likelihood of customer defaulted. 
+
+Looking at the stats, classification trees method performs better for this data set. 
+
+
+## Problem 2 :
+
+The attached .csv file (spam.csv has 4600 emails of which about 1800 are considered spam (spam variable).  The rest of the variables are indicators of the presence of 54 keywords or character.  For instance word_address is an indicator if the word address is present or not, char_semicolon is an indicator asking if the character semicolon is present or not.  It also contains variables for counts of capital letters, such as the total count, longest continuous block of capital letters.  Use this information on the words in the email to create a classifier for spam prediction using random forest, bagging and classification trees.  Use caret to do model selection.  Before fitting hold out 200 observations to use as a validation set, where you can compare the best three models.  Discuss any insights you can derive from your models or classification rates.  
+
+```{r include=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(dplyr)
+library(tidyverse)
+library(randomForest)
+library(pROC)
+spam <- read.csv("C:/Drive 01/MS in Business Data Analytics/BUDA535/Homework5/spam.csv")
+
+str(spam)
+head(spam)
+dim(spam)
+
+checkNAdata <- function(input) {
+  sum(is.na(input))
+}
+
+# check if  an NA/null data
+lapply(spam, FUN=checkNAdata)
+
+#nrow(train_data1)
+#nrow(test_data1)
+
+#nrow(filter(train_data1, train_data1$spam == "1"))
+#nrow(filter(train_data1, train_data1$spam == "0"))
+
+
+
+```
+
+```{r}
+
+#Convert columns with length 2 i.e. indicator columns with 0 and 1 to factors
+column_names <- sapply(spam, function(column) length(unique(column)) < 3)
+spam[,column_names] <- lapply(spam[,column_names], factor)
+
+#summary(spam)
+
+set.seed(4252020)
+train_in1 <- sample(seq_len(nrow(spam)), size =4401)
+
+train_data1 <- spam[train_in1,]
+test_data1 <- spam[-train_in1,]
+
+fitControl <- trainControl(method="cv", number = 10)
+
+# Random forest
+set.seed(4252020)
+randomforest_train_model_spam <- train(spam ~.,data=train_data1,method="rf",trControl=fitControl, tuneGrid=expand.grid(mtry=1:8))
+#randomforest_train_model_spam
+plot(randomforest_train_model_spam)
+plot(randomforest_train_model_spam$finalModel)
+varImpPlot(randomforest_train_model_spam$finalModel, type=2)
+randomforest.besttuned.spam = displaybesttuneresults(randomforest_train_model_spam)
+
+pred.randomForest.spam <- predict(randomforest_train_model_spam, test_data1, type="raw")
+cm.randomForest.spam = confusionMatrix(pred.randomForest.spam,test_data1$spam, positive = "1")
+cm.randomForest.spam
+
+# ROC curve
+pred.randomForest.spam.roc <- predict(randomforest_train_model_spam, test_data1, type="prob")
+rocCurve.randomforest.spam <- roc(test_data1$spam, pred.randomForest.spam.roc[,"1"])
+
+# Bagging
+set.seed(4252020)
+bagging_train_model_spam <- train(spam~., data=train_data1, trControl = fitControl, method="treebag")
+#bagging_train_model_spam <- train(spam~.,data=train_data1,trControl=fitControl, method="cforest", controls = party::cforest_unbiased(ntree = 20), tuneGrid = data.frame(.mtry=8))
+bagging_train_model_spam$finalModel
+plot(varImp(bagging_train_model_spam))
+bagging.besttuned.spam = displaybesttuneresults(bagging_train_model_spam)
+#varImp(bagging_train_model_spam$finalModel)
+
+pred.bagging.spam <- predict(bagging_train_model_spam, test_data1)
+cm.bagging.spam = confusionMatrix(pred.bagging.spam ,test_data1$spam, positive = "1")
+cm.bagging.spam
+
+# ROC curve
+pred.bagging.spam.roc <- predict(bagging_train_model_spam, test_data1, type="prob")
+rocCurve.bagging.spam <- roc(test_data1$spam, pred.bagging.spam.roc[,"1"])
+
+
+# Classification trees
+set.seed(4252020)
+#classTree_train_model_spam <- train(spam~., data=train_data1, trControl = fitControl, method="rpart",tuneGrid=expand.grid(cp=0.01))
+classTree_train_model_spam <- train(spam~., data=train_data1, trControl = fitControl, method="rpart",tuneLength=10)
+classTree_train_model_spam$finalModel
+rpart.plot(classTree_train_model_spam$finalModel)
+#varImp(classTree_train_model_spam$finalModel)
+plot(varImp(classTree_train_model_spam))
+classTree.besttuned.spam = displaybesttuneresults(classTree_train_model_spam)
+
+
+pred.classTree.spam <- predict(classTree_train_model_spam, test_data1)
+cm.classTree.spam = confusionMatrix(pred.classTree.spam ,test_data1$spam, positive = "1")
+cm.classTree.spam
+
+# ROC curve
+pred.classTree.spam.roc <- predict(classTree_train_model_spam, test_data1, type="prob")
+rocCurve.classTree.spam <- roc(test_data1$spam, pred.classTree.spam.roc[,"1"])
+
+
+# ROc Curve
+plot(rocCurve.randomforest.spam, col="red", main="ROC Curves")
+plot(rocCurve.bagging.spam, add=TRUE,col="green")
+plot(rocCurve.classTree.spam, add=TRUE,col="blue")
+legend("bottomright", c("rocCurve.randomforest.spam", "rocCurve.bagging.spam","rocCurve.classTree.spam") ,col = c("red","green","blue"), inset=c(0,0.15), lty=1, bty="n")
+
+# Accuracy and best tuned of trained data
+list(title = "Accuracy and best tuned of trained data",
+     randomforest_pred =randomforest.besttuned.spam,
+     bagging_pred = bagging.besttuned.spam,
+     classificationtree_pred = classTree.besttuned.spam)
+
+# Accruacy of prediction on test data
+list(title = "Accuracy of prediction on test data",
+     randomforest_pred =cm.randomForest.spam$overall,
+     bagging_pred = cm.bagging.spam$overall,
+     classificationtree_pred = cm.classTree.spam$overall)
+
+# Other stats of Confusion Matrix
+list(title = "Other Stats of Confusion Matrix",
+     randomforest_pred =cm.randomForest.spam$byClass,
+     bagging_pred = cm.bagging.spam$byClass,
+     classificationtree_pred = cm.classTree.spam$byClass)
+
+# Prediction Eval
+list(title = "Prediction Eval",
+     rf_model = cm.randomForest.spam$table %>% prop.table() %>% round(3),
+     bagging_model = cm.bagging.spam$table %>% prop.table() %>% round(3),
+     classtree_model = cm.classTree.spam$table %>% prop.table() %>% round(3))
+```
+
+### Interpretation :
+
+As per the output of final model selected for random forest method, number of trees trained are 500(by default) and mtry (tuning parameter) is 8 which has highest accuracy of 95.16%. Error rate is 4.95% which is good. As per the class error, true negatives accuracy is better than true positives accuracy similarly visible in graph of final model. Looking at the model plot, highest accuracy is at mtry=8 which is considered optimal. Very imp plot show the variables which are significant in spliting the node of the trees. A higher descrease in Gini (inquity) means that a particular predictor plays a greater role in partitioning the data into the defined classes. Predicting on test data gives 97% of accuracy with good % of sensitivty and specificity. p-value is < 0.05 which shows great dependency between dependent and predictor variables. 
+
+As per the output of final model selected for bagging method, 25 bootstrap replications are created and accuracy is 94.05% on train data. Predicting the fit model on test data, 91.5% of model accuracy which is little less than the accuracy on trained data. 
+
+As per the output of the final model selected for classification tree method, model accuracy is 90.79% and cp = 0.0034 is selected as optimal. Each node in this visual display gives the estimate at each node as well as the percentage of train data observations that are placed in that node. Based on the tree and the varImp method results,it is visible that which variables plays imp role in dividing the nodes of the tree. Predicting the fit model on test data, classification accuracy is 91.5% which is almost same accuracy as on train data.
+
+Selected mtry = 1:8 for RF method because tried large number of parameters but error rate is not changing much but computation time is more. As per my understanding and testing that i did, variance does not change much so better to take small number but this again on data sets. mtry =1:8 carries required informations to create the nodes of the tree.
+
+**Camparisons :** 
+
+
+Looking at the classification accuracy (on test data) of all three models, random forest method have the highest accuracy of 97%. Agaim, random forest method have the highest sensitivity(true positives) of 97.33 which means 97.33% of the observations are predicted to be true positives. Other two methods have less sensitivity as compared to RF. Specificty of random forest method is higher than other two methods. RF predicts 96.8% of obervartions as true negatives. p-value of all the models is < 0.05 which rejects the null hypothesis at 95% CI and shows great dependency between dependent and predictor variables and the lowest p-value is of rf method.
+
+Looking at the prediction eval metric, Prediction accuracy of random forest is better than other two methods. 60% of the observations are predicted as emails and 36.5% of observations are predicted as spam. About 1% of observations are predicted as spam but they are actually not spam and 2% are predicted as not spam but actually they are spam emails. If we compare the results with actual dataset, 39.12% of observations are spam and 60.88% of observations are emails. Hence, the random forest classifier is better to predict if the response is spam or not for this dataset.
+
+Looking at the ROC curves, RF (red) and bagging(green) have more area under the curve which is good.
+
+Based on the conparison of above stats of all three models, random forest method performs better to predict if the email is spam or not. It is seen from the importance plot that variable char_exclaim is the most important feature followed by captial_run_length_average, work_remove, Char_dollar and many more till point 50 which played greater role in predicting if email is spam or not. 
